@@ -8,6 +8,9 @@ until you choose to open it up through your own `.sesh` name.
 This is beta software. Stores never handle money: buyers pay sellers from their own SRNet
 balance in their own client.
 
+SRNet is an independent project. It is not affiliated with or endorsed by the Session Foundation
+or the Session Technology Foundation.
+
 Running a mail host? It's open to new inboxes by default (cap 1000); close sign-up any time with
 `srnet-host mail --prefix <dir> --closed`. See *Running a mail host* in `docs/HOST-GUIDE.md`.
 
