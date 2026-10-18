@@ -5,6 +5,9 @@ directory, community directory or mail host**. The apps are built into the SRNet
 serves signed data. Your root key stays offline, and the host listens only on `127.0.0.1`
 until you choose to open it up through your own `.sesh` name.
 
+This is beta software. Stores never handle money: buyers pay sellers from their own SRNet
+balance in their own client.
+
 Running a mail host? It's open to new inboxes by default (cap 1000); close sign-up any time with
 `srnet-host mail --prefix <dir> --closed`. See *Running a mail host* in `docs/HOST-GUIDE.md`.
 
@@ -18,7 +21,6 @@ sudo apt update
 sudo apt install -y git python3 python3-cryptography
 git clone https://github.com/SRNet-lab/SRNet-TypedSNApp-HostPack.git
 cd SRNet-TypedSNApp-HostPack
-python3 -m unittest discover -s tests     # optional: every guide flow, in a temp dir
 ```
 
 Your root key lives on a separate, offline machine. Clone the same repository there too (only
@@ -40,7 +42,9 @@ Types: `board`, `store`, `wiki`, `rooms` (`--room` adds more rooms), `files`, `p
 to serve several hosts under one `.sesh` name.
 
 `.sesh` names need Session Router on the server: see *Letting people in* in the guide and
-`./bin/srnet-host sesh-help`.
+`./bin/srnet-host sesh-help`. The pack never sets up Session Router as a service on its own. The
+host's `.sesh` instance is written as a config for you to start, and only `srnet-host front`
+installs router units, when you run it.
 
 Signed release tarballs (see [RELEASING.md](RELEASING.md)) are not published yet; install from git.
 
@@ -52,7 +56,18 @@ Signed release tarballs (see [RELEASING.md](RELEASING.md)) are not published yet
 | `mbfmt/ mbhost/ typed/ mbclient/` | host code (and a minimal client used by `scripts/demo.py`) |
 | `docs/HOST-GUIDE.md` | step-by-step guide |
 | `docs/LICENSES.md` | licence notes |
-| `tests/` | `python3 -m unittest discover -s tests` (every guide flow end to end in a temp dir; set `SRNET_CLIENT` to an SRNet-Desktop checkout to include real client joins and mail) |
+| `tests/` | automated tests |
 | `RELEASING.md` | how maintainers build and sign releases |
 
-Licence: MIT (see `LICENSE`). Stores never handle money: buyers pay from their SRNet balance in their own client.
+## Related repositories
+
+- [SRNet-Desktop](https://github.com/SRNet-lab/SRNet-Desktop): the SRNet client people use to
+  join your host, read and post, and send mail.
+- [Session-Router-SRNet](https://github.com/SRNet-lab/Session-Router-SRNet): the Session Router
+  build the client runs, with exit mapping added.
+- [SRNet-VPSHost-ExitPack](https://github.com/SRNet-lab/SRNet-VPSHost-ExitPack): run a paid
+  exit on an Ubuntu server.
+
+## License
+
+MIT. See [LICENSE](LICENSE) and [docs/LICENSES.md](docs/LICENSES.md).

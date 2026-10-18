@@ -1,7 +1,7 @@
 """Type semantics, computed identically by hosts (where cheap) and clients.
 
 All functions take `items`: verified records in log order, each
-{"id","seq","t","author","ts","body","refs"} — and the collection policy (for admins/sellers).
+{"id","seq","t","author","ts","body","refs"}, and the collection policy (for admins/sellers).
 Templates only ever see the output of these functions."""
 from __future__ import annotations
 

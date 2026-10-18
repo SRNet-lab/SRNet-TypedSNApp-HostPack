@@ -45,7 +45,7 @@ Types:
 | `store` | a store; buyers pay sellers from their SRNet balance in their own client |
 | `wiki` | a wiki |
 | `rooms` | one or more chat rooms (`--room NAME` adds another, repeatable) |
-| `files` | an encrypted file drop (files up to 4 MiB, ciphertext only) |
+| `files` | an encrypted file drop (ciphertext only; files up to 25 MiB by default) |
 | `people` | a profile directory |
 | `directory` | a directory of communities; each entry is signed by the listed collection's root key |
 | `mail` | a mail host: sealed store-and-forward mail |
@@ -200,7 +200,7 @@ and resume after an interruption. Make sure your disk can hold the total you all
 
 - It checks every record's signature and its small proof-of-work puzzle, and it applies rate
   limits. New keys get a slightly harder puzzle.
-- You can hide, remove and pin posts (see "Moderating" below). Every action is signed and public.
+- You can hide, remove and pin posts (see "Moderating"). Every action is signed and public.
 - **Stores never touch money.** Buyers pay sellers from their own SRNet balance in their own
   client, and post a signed receipt the seller's client checks on-chain.
 - Files are stored as ciphertext and served only by their SHA-256 hash. You set the largest
@@ -250,6 +250,10 @@ Session Router client config (own tun range, `[bind] listen=:1250`), and starts 
 lists everything. Each host's `link` then prints links on that name. Open udp/1250 and
 tcp/80 on `sr-front` only (`ufw allow in on sr-front to any port 80 proto tcp`).
 A board host serves at `/` and needs its own name.
+
+With systemd, `front` enables both units so they start at boot. Pass `--no-systemd` to only
+write the unit files to the front directory and start them yourself, or turn off autostart
+later with `sudo systemctl disable srnet-front-router srnet-front`.
 
 ### Other loopback services on the same name (`--route`)
 

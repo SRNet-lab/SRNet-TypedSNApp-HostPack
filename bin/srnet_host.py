@@ -156,7 +156,7 @@ def exec_cmd(cfg):
         return [py, "-m", "mbhost.host", "--data", f"{pre}/data", "--board", cfg["name"],
                 "--bind", "127.0.0.1", "--port", str(cfg["port"]),
                 "--delegation", f"{pre}/delegation/{cfg['name']}.json", "--tick", "30",
-                # same soft PoW as the lab board (16 / 18 for new keys); unchanged defaults
+                # same soft PoW as the SRNet demo board (16 / 18 for new keys)
                 "--pow-bits", "16", "--new-key-pow-bits", "18"]
     if cfg["type"] == "mail":  # sealed store-and-forward; never sees content or senders
         return [py, "-m", "typed.mailhost", "--data", f"{pre}/data", "--bind", "127.0.0.1",

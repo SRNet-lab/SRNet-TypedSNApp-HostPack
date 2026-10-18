@@ -1,4 +1,4 @@
-"""Locked-down viewer for plain-HTML .sesh pages — prototype.
+"""Locked-down viewer for plain-HTML .sesh pages.
 
 * The page's HTML is re-built from an allow-list (tags + a few attributes); everything else is
   dropped or turned into text.  Scripts, styles, iframes, objects, embeds, forms' actions,

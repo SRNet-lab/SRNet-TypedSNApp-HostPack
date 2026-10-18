@@ -25,7 +25,7 @@ print("host", url, "root pin", pin[:16] + "…")
 dead = "http://127.0.0.1:9"  # first entry in the failover list is down on purpose
 alice = Client(tmp + "/alice", a.board, pin, [dead, url])
 bob = Client(tmp + "/bob", a.board, pin, [dead, url])
-t = time.time(); r1 = alice.post("Hello from alice — first post on the SRNet board.")
+t = time.time(); r1 = alice.post("Hello from alice, first post on the SRNet board.")
 print(f"alice post  ok={r1['ok']} id={r1.get('id')} seq={r1.get('seq')} ({time.time()-t:.1f}s incl. PoW)")
 print("bob sync   ", (lambda r: {k: r.get(k) for k in ("host", "added", "error")})(bob.sync()))
 r2 = bob.post("Hi alice! Replying from bob. <script>alert(1)</script> stays plain text.", r1["id"])
