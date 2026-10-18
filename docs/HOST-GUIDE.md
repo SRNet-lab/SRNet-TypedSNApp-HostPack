@@ -136,7 +136,8 @@ URL people add as one of their mail hosts.
 closed with `srnet-host init --type mail --name post1 --closed`.
 
 - Each inbox holds up to 256 messages or 8 MiB, plus a "requests" pile for mail from
-  strangers: 32 messages of up to 16 KiB, 20 per hour.
+  strangers: 32 messages of up to 16 KiB, 20 per hour. Change the pile limits with
+  `srnet-host mail --prefix … --requests-max-msgs N --requests-per-hour N`.
 - Messages are deleted after their owner's client confirms it saved them, or after 7 days
   (up to 30 if the sender asks) if never confirmed.
 - Total storage is capped at 1 GiB.

@@ -161,7 +161,9 @@ def exec_cmd(cfg):
     if cfg["type"] == "mail":  # sealed store-and-forward; never sees content or senders
         return [py, "-m", "typed.mailhost", "--data", f"{pre}/data", "--bind", "127.0.0.1",
                 "--port", str(cfg["port"]), "--delegation", f"{pre}/delegation/{cfg['name']}.json",
-                "--max-inboxes", str(cfg.get("max_inboxes", 1000))] + (["--closed"] if cfg.get("closed") else [])
+                "--max-inboxes", str(cfg.get("max_inboxes", 1000))] + (["--closed"] if cfg.get("closed") else []) \
+            + [x for k, f in (("requests_max_msgs", "--requests-max-msgs"), ("requests_per_hour", "--requests-per-hour"))
+               if cfg.get(k) for x in (f, str(cfg[k]))]
     kind = TYPES[cfg["type"]][1]
     cmd = [py, "-m", "typed.hub", "--data", f"{pre}/data", "--bind", "127.0.0.1",
            "--port", str(cfg["port"]), "--delegation-dir", f"{pre}/delegation"]
@@ -395,12 +397,19 @@ def cmd_mail(a):
         if a.max_inboxes < 0:
             die("--max-inboxes must be >= 0")
         cfg["max_inboxes"] = a.max_inboxes
+    for k in ("requests_max_msgs", "requests_per_hour"):
+        v = getattr(a, k)
+        if v is not None:
+            if v < 1:
+                die(f"--{k.replace('_', '-')} must be at least 1")
+            cfg[k] = v
     save_cfg(cfg)
     write_private(os.path.join(cfg["prefix"], "unit.service"), unit_text(cfg).encode(), 0o644)
     if cfg.get("systemd") and is_root() and have_systemd():
         install_unit(cfg)
     print(f"mail host '{cfg['name']}': sign-up {'CLOSED' if cfg.get('closed') else 'open'}, "
-          f"cap {cfg.get('max_inboxes', 1000)} inboxes"
+          f"cap {cfg.get('max_inboxes', 1000)} inboxes, non-contact mail "
+          f"{cfg.get('requests_max_msgs', 32)} waiting / {cfg.get('requests_per_hour', 20)} per hour per inbox"
           + ("" if cfg.get("systemd") else " (restart `srnet-host run` to apply)"))
 
 
@@ -974,12 +983,14 @@ def main(argv=None):
     p.add_argument("--quota-mb", type=float, default=0, help="files: MiB each uploader may store (0 = no quota)")
     sesh_args(p)
     p.set_defaults(fn=cmd_init)
-    p = sp.add_parser("mail", help="mail host: open or close new-inbox sign-up, change the cap")
+    p = sp.add_parser("mail", help="mail host: sign-up, inbox cap and limits for mail from non-contacts")
     pre(p)
     g = p.add_mutually_exclusive_group()
     g.add_argument("--closed", action="store_true", help="stop new inboxes (existing ones keep working)")
     g.add_argument("--open", action="store_true", help="allow new inboxes again")
     p.add_argument("--max-inboxes", type=int)
+    p.add_argument("--requests-max-msgs", type=int, help="non-contact mail waiting per inbox (default 32)")
+    p.add_argument("--requests-per-hour", type=int, help="new non-contact mail per inbox per hour (default 20)")
     p.set_defaults(fn=cmd_mail)
     p = sp.add_parser("files", help="files host: change the file size limit or uploader quota")
     pre(p)

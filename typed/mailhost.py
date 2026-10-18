@@ -93,7 +93,8 @@ class Host:
 
     def info(self):
         lim = {k: self.p[k] for k in ("ttl_default_s", "ttl_max_s", "inbox_max_msgs",
-                                      "requests_max_msgs", "requests_max_blob", "open_registration")}
+                                      "requests_max_msgs", "requests_max_blob", "requests_per_hour",
+                                      "open_registration")}
         return {"v": 1, "role": "mail", "host": self.id, "max_blob": M.MAX_SEALED,
                 "limits": lim, "delegation": self.delegation}
 
@@ -301,8 +302,15 @@ def main(argv=None):
     ap.add_argument("--closed", action="store_true", help="no new inbox registrations")
     ap.add_argument("--delegation", help="root-signed delegation to publish in /v1/mail/info")
     ap.add_argument("--max-inboxes", type=int, default=DEFAULTS["max_inboxes"])
+    ap.add_argument("--requests-max-msgs", type=int, default=DEFAULTS["requests_max_msgs"],
+                    help="mail from non-contacts: most messages waiting per inbox")
+    ap.add_argument("--requests-per-hour", type=int, default=DEFAULTS["requests_per_hour"],
+                    help="mail from non-contacts: most new messages per inbox per hour")
     a = ap.parse_args(argv)
-    h = Host(a.data, {"open_registration": not a.closed, "max_inboxes": a.max_inboxes})
+    if a.requests_max_msgs < 1 or a.requests_per_hour < 1:
+        ap.error("--requests-max-msgs and --requests-per-hour must be at least 1")
+    h = Host(a.data, {"open_registration": not a.closed, "max_inboxes": a.max_inboxes,
+                      "requests_max_msgs": a.requests_max_msgs, "requests_per_hour": a.requests_per_hour})
     if a.delegation and os.path.exists(a.delegation):
         h.delegation = _readjson(a.delegation)
     srv = serve(h, a.bind, a.port)

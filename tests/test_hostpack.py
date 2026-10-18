@@ -164,6 +164,32 @@ class HostPack(unittest.TestCase):
         self.assertEqual(S.load_cfg(pre)["max_file_mb"], 50)
         self.assertNotEqual(run("files", "--prefix", pre, "--max-file-mb", "999", ok=False).returncode, 0)
 
+    def test_mail_request_limits(self):
+        pre = self.init("mail", "post2")
+        cmd = S.exec_cmd(S.load_cfg(pre))
+        self.assertNotIn("--requests-max-msgs", cmd)  # defaults unchanged: no extra flags
+        run("mail", "--prefix", pre, "--requests-max-msgs", "500", "--requests-per-hour", "60")
+        cfg = S.load_cfg(pre)
+        cmd = S.exec_cmd(cfg)
+        self.assertEqual(cmd[cmd.index("--requests-max-msgs") + 1], "500")
+        self.assertEqual(cmd[cmd.index("--requests-per-hour") + 1], "60")
+        self.assertNotEqual(run("mail", "--prefix", pre, "--requests-per-hour", "0", ok=False).returncode, 0)
+        self.sign(pre)
+        run("install-delegation", f"{self.t}/d.json", "--prefix", pre, "--no-systemd")
+        p = subprocess.Popen([sys.executable, CLI, "run", "--prefix", pre],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            for _ in range(100):
+                try:
+                    with urllib.request.urlopen(f"http://127.0.0.1:{cfg['port']}/v1/mail/info", timeout=1) as r:
+                        lim = json.load(r)["limits"]
+                    break
+                except OSError:
+                    time.sleep(0.1)
+            self.assertEqual((lim["requests_max_msgs"], lim["requests_per_hour"]), (500, 60))
+        finally:
+            p.terminate(); p.wait()
+
     def test_mail_host_role(self):
         pre = self.init("mail", "post1")
         cfg = S.load_cfg(pre)
