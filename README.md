@@ -11,6 +11,9 @@ balance in their own client.
 Running a mail host? It's open to new inboxes by default (cap 1000); close sign-up any time with
 `srnet-host mail --prefix <dir> --closed`. See *Running a mail host* in `docs/HOST-GUIDE.md`.
 
+Guide: [Typed SNApps: an illustrated walkthrough](docs/Typed-SNApps-Walkthrough.pdf) (PDF), a
+screen-by-screen tour of the client, ending with how to run a host.
+
 ## Install
 
 On the server (Debian or Ubuntu; Python 3.10 or newer):
