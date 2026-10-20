@@ -1,12 +1,28 @@
 # SRNet host pack
 
+**What's new**
+
+- No developer fee anywhere in SRNet.
+- Simpler store payments: buyers pay the seller's own address straight from their own wallet. No
+  balance, no contract and no escrow.
+- Exits now have their own repository,
+  [SRNet-VPSHost-ExitPack](https://github.com/SRNet-lab/SRNet-VPSHost-ExitPack).
+
 Run your own SRNet community host: a **message board, store, wiki, chat rooms, file drop, profile
 directory, community directory or mail host**. The apps are built into the SRNet client. Your server just stores and
 serves signed data. Your root key stays offline, and the host listens only on `127.0.0.1`
 until you choose to open it up through your own `.sesh` name.
 
-This is beta software. Stores never handle money: buyers pay sellers from their own SRNet
-balance in their own client.
+This is beta software. Stores never handle money: buyers pay the seller's own address from
+their own wallet, and your server only stores the signed listings and orders.
+
+Hosting a file drop makes you a Storage Seller. The SRNet client encrypts files on the
+uploader's computer with ChaCha20-Poly1305 before upload, unless the uploader chooses to publish
+a file unencrypted, so with encryption on you store only ciphertext. Mail is sealed the same way
+on the sender's computer, so a mail host can't read the mail it holds.
+
+**Coming soon:** Storage Sellers will be able to turn off public hosting, so they hold only
+encrypted files they can't read.
 
 SRNet is an independent project. It is not affiliated with or endorsed by the Session Foundation
 or the Session Technology Foundation.
@@ -77,3 +93,8 @@ Signed release tarballs (see [RELEASING.md](RELEASING.md)) are not published yet
 ## License
 
 MIT. See [LICENSE](LICENSE) and [docs/LICENSES.md](docs/LICENSES.md).
+
+## Donations
+
+If SRNet is useful to you, donations are welcome at
+`0xec4fEECa354C7eabbe8957a23c361Aa365E3b377` (USDC or ETH on Arbitrum One or Base).
