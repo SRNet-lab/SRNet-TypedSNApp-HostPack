@@ -685,11 +685,15 @@ SESH_HELP = """Giving a host a .sesh name
 
 Your host listens only on 127.0.0.1. To let people reach it over Session Router:
 
- 1. Install Session Router (Ubuntu 24.04):
-      sudo curl -fsSLo /usr/share/keyrings/session-foundation.gpg https://deb.session.foundation/pub.gpg
-      echo "deb [signed-by=/usr/share/keyrings/session-foundation.gpg] https://deb.session.foundation $(. /etc/os-release; echo $VERSION_CODENAME) main" | sudo tee /etc/apt/sources.list.d/session-foundation.list
-      sudo apt update
-      sudo apt install -y session-router-bin
+ 1. Install the SRNet build of Session Router (Ubuntu 24.04, x86_64; source:
+    https://github.com/SRNet-lab/Session-Router-SRNet, branch srnet/mapexit-dev):
+      cd /tmp
+      curl -fLO https://github.com/SRNet-lab/Session-Router-SRNet/releases/download/v1.1.0-srnet6/session-router-srnet_1.1.0+srnet6_amd64.deb
+      echo "5c1c9b553b25649657f9f8e3ae0431aa3fe0534c82e65214588c728307bf3237  session-router-srnet_1.1.0+srnet6_amd64.deb" | sha256sum -c \\
+        && sudo apt install -y ./session-router-srnet_1.1.0+srnet6_amd64.deb \\
+        && sudo apt-mark hold session-router-srnet
+      cd -
+    It installs /usr/bin/session-router. The server does not need the SRNet client.
 
  2. Start the front with the .sesh key that `init` made:
       sudo ./bin/srnet-host front --sesh-import <prefix>/sesh/identity.key --host <prefix>

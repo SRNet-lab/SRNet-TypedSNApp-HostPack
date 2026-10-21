@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- The README, the host guide and `srnet-host sesh-help` install the SRNet build of Session
+  Router (Session-Router-SRNet 1.1.0+srnet6, the same one SRNet-Desktop uses) from its release
+  `.deb`, with a checksum check. No Session Foundation apt repository is needed, and the server
+  does not need the SRNet client.
+
 ## [0.5.0] - 2026-10-20
 
 ### Added

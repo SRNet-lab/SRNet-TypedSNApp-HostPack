@@ -42,7 +42,7 @@ On the server (Debian or Ubuntu; Python 3.10 or newer):
 ```sh
 cd ~
 sudo apt update
-sudo apt install -y git python3 python3-cryptography
+sudo apt install -y git curl python3 python3-cryptography
 git clone https://github.com/SRNet-lab/SRNet-TypedSNApp-HostPack.git
 cd SRNet-TypedSNApp-HostPack
 ```
@@ -57,6 +57,7 @@ Then follow [docs/HOST-GUIDE.md](docs/HOST-GUIDE.md). The short version, run fro
     sudo ./bin/srnet-host init --type rooms --name lobby --sesh new  # on the server
     ./bin/srnet-host root sign request.json --days 90               # offline machine
     sudo ./bin/srnet-host install-delegation delegation.json --prefix /opt/srnet-host/lobby
+    # install Session Router (below), then:
     sudo ./bin/srnet-host front --sesh-import /opt/srnet-host/lobby/sesh/identity.key \
         --host /opt/srnet-host/lobby                                 # the .sesh name
     sudo ufw allow in on sr-front to any port 80 proto tcp
@@ -68,8 +69,20 @@ Types: `board`, `store`, `wiki`, `rooms` (`--room` adds more rooms), `files`, `p
 `root directory-entry` + `directory-submit` to list your community in a directory, and `front`
 to serve several hosts under one `.sesh` name.
 
-To give your host a `.sesh` name, install Session Router on the server and run
-`srnet-host front`. *Letting people in* in the guide has the exact commands.
+To give your host a `.sesh` name, install the SRNet build of Session Router
+([Session-Router-SRNet](https://github.com/SRNet-lab/Session-Router-SRNet), the same one the
+SRNet client uses) on the server and run `srnet-host front`. On Ubuntu 24.04:
+
+```sh
+cd /tmp
+curl -fLO https://github.com/SRNet-lab/Session-Router-SRNet/releases/download/v1.1.0-srnet6/session-router-srnet_1.1.0+srnet6_amd64.deb
+echo "5c1c9b553b25649657f9f8e3ae0431aa3fe0534c82e65214588c728307bf3237  session-router-srnet_1.1.0+srnet6_amd64.deb" | sha256sum -c \
+  && sudo apt install -y ./session-router-srnet_1.1.0+srnet6_amd64.deb \
+  && sudo apt-mark hold session-router-srnet
+cd ~/SRNet-TypedSNApp-HostPack
+```
+
+The server does not need the SRNet client. *Letting people in* in the guide has the rest.
 
 Signed release tarballs (see [RELEASING.md](RELEASING.md)) are not published yet; install from git.
 

@@ -92,16 +92,25 @@ collection.
 ## Letting people in
 
 Out of the box your host listens only on 127.0.0.1. To give it a `.sesh` name people can reach,
-install Session Router on the server and start a front for the host.
+install the SRNet build of Session Router on the server and start a front for the host.
 
-**1. Install Session Router** (Ubuntu 24.04):
+**1. Install Session Router** (Ubuntu 24.04, x86_64). This is the same SRNet build the
+SRNet client uses (source:
+[Session-Router-SRNet](https://github.com/SRNet-lab/Session-Router-SRNet), branch
+`srnet/mapexit-dev`):
 
 ```sh
-sudo curl -fsSLo /usr/share/keyrings/session-foundation.gpg https://deb.session.foundation/pub.gpg
-echo "deb [signed-by=/usr/share/keyrings/session-foundation.gpg] https://deb.session.foundation $(. /etc/os-release; echo $VERSION_CODENAME) main" | sudo tee /etc/apt/sources.list.d/session-foundation.list
-sudo apt update
-sudo apt install -y session-router-bin
+cd /tmp
+curl -fLO https://github.com/SRNet-lab/Session-Router-SRNet/releases/download/v1.1.0-srnet6/session-router-srnet_1.1.0+srnet6_amd64.deb
+echo "5c1c9b553b25649657f9f8e3ae0431aa3fe0534c82e65214588c728307bf3237  session-router-srnet_1.1.0+srnet6_amd64.deb" | sha256sum -c \
+  && sudo apt install -y ./session-router-srnet_1.1.0+srnet6_amd64.deb \
+  && sudo apt-mark hold session-router-srnet
+cd ~/SRNet-TypedSNApp-HostPack
 ```
+
+You should see `checksum OK` before apt starts. If the check fails, nothing gets installed:
+download it again and rerun the chained lines. The package installs `/usr/bin/session-router`,
+which `srnet-host front` finds by itself. The server does not need the SRNet client.
 
 **2. Start the front** with the `.sesh` key that `init` made:
 

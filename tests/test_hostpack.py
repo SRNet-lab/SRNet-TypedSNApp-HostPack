@@ -336,11 +336,26 @@ class Sesh(unittest.TestCase):
 
     def test_sesh_help_describes_front(self):
         out = run("sesh-help").stdout
-        for want in ("apt install -y session-router-bin", "front --sesh-import <prefix>/sesh/identity.key",
+        for want in ("Session-Router-SRNet/releases/download/v1.1.0-srnet6/session-router-srnet_1.1.0+srnet6_amd64.deb",
+                     "apt install -y ./session-router-srnet_1.1.0+srnet6_amd64.deb",
+                     "front --sesh-import <prefix>/sesh/identity.key",
                      "ufw allow in on sr-front to any port 80 proto tcp"):
             self.assertIn(want, out)
-        for gone in ("router.ini", "ENABLE.txt", "bootstrap"):
+        for gone in ("router.ini", "ENABLE.txt", "bootstrap", "session-router-bin", "session.foundation"):
             self.assertNotIn(gone, out)
+
+    def test_docs_install_the_srnet_router_build(self):
+        deb = "session-router-srnet_1.1.0+srnet6_amd64.deb"
+        sha = "5c1c9b553b25649657f9f8e3ae0431aa3fe0534c82e65214588c728307bf3237"
+        texts = [run("sesh-help").stdout]
+        for rel in ("README.md", os.path.join("docs", "HOST-GUIDE.md")):
+            with open(os.path.join(S.PACK_ROOT, rel)) as f:
+                texts.append(f.read())
+        for t in texts:
+            self.assertIn(f"{sha}  {deb}", t)
+            self.assertIn(f"sudo apt install -y ./{deb}", t)
+            self.assertNotIn("session-router-bin", t)
+            self.assertNotIn("deb.session.foundation", t)
 
     def test_upgrade_drops_old_sesh_files(self):
         pre, _ = self.init("w3", "--sesh", "new")
