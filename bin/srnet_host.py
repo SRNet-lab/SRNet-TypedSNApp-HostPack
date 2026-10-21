@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """srnet-host: set up and run your own SRNet typed-SNApp host (board, store, wiki, rooms,
-files, people, directory, mail) with an OFFLINE root key.
+files, people, directory, mail). Your root key stays on your own computer, not the server.
 
-Host machine:   init -> (send request.json to root machine) -> install-delegation -> status
-Root machine:   root init  /  root sign request.json  /  root directory-entry
+On the server:        init -> (copy request.json to your computer) -> install-delegation -> status
+On your computer:     root init  /  root sign request.json  /  root directory-entry
 One name:       front --host P --host P ... --sesh-import KEY
 Upkeep:         link, renew, upgrade, backup, uninstall, mail, sesh, sesh-help, directory-submit
 
@@ -156,7 +156,7 @@ def exec_cmd(cfg):
         return [py, "-m", "mbhost.host", "--data", f"{pre}/data", "--board", cfg["name"],
                 "--bind", "127.0.0.1", "--port", str(cfg["port"]),
                 "--delegation", f"{pre}/delegation/{cfg['name']}.json", "--tick", "30",
-                # same soft PoW as the SRNet demo board (16 / 18 for new keys)
+                # same soft PoW as the demo board (16 / 18 for new keys)
                 "--pow-bits", "16", "--new-key-pow-bits", "18"]
     if cfg["type"] == "mail":  # sealed store-and-forward; never sees content or senders
         return [py, "-m", "typed.mailhost", "--data", f"{pre}/data", "--bind", "127.0.0.1",
@@ -288,7 +288,7 @@ def cmd_init(a):
               " see `srnet-host sesh-help`)")
     print(f"  host key : {F.pub_hex(host_key(cfg))}")
     print(f"  listens  : 127.0.0.1:{port} (loopback only)")
-    print(f"\nNext: copy {req} to your OFFLINE root machine and run:")
+    print(f"\nNext: copy {req} to your own computer (where your root key is) and run:")
     print(f"  ./bin/srnet-host root sign {os.path.basename(req)} --days 90")
     print("then bring delegation.json back and run:")
     print(f"  sudo ./bin/srnet-host install-delegation delegation.json --prefix {prefix}")
@@ -306,7 +306,7 @@ def cmd_root_init(a):
     write_private(p, seed)
     pin = F.pub_hex(F.key_from_seed(seed))
     write_private(os.path.join(a.dir, "root.pin"), (pin + "\n").encode(), 0o644)
-    print(f"Root key created: {p} (keep this machine offline; back the key up on paper/USB)")
+    print(f"Root key created: {p} (keep it off the server; back it up on paper or a USB stick)")
     print(f"Root pin (public, give to users): {pin}")
 
 
@@ -318,7 +318,7 @@ def cmd_root_sign(a):
     print(f"Request: type={req.get('type')} collections={req.get('collections')}")
     print(f"         host key={req.get('host')}")
     if not a.yes:
-        if input(f"Sign for {a.days} days? Check the host key with the host operator. [y/N] ") \
+        if input(f"Sign for {a.days} days? Check the host key matches the one the server printed. [y/N] ") \
                 .strip().lower() != "y":
             die("not signed")
     bundle = sign_request(root, req, a.days)
@@ -554,7 +554,7 @@ def cmd_status(a):
     if left is not None and left < 14 * 86400:
         warn.append("delegation expires within 14 days: run `srnet-host renew`")
     if os.path.exists(os.path.join(cfg["prefix"], "data", "root.key")):
-        warn.append("a root.key is on this host; move it offline")
+        warn.append("a root.key is on this server; move it to your own computer")
     out["warnings"] = warn
     print(json.dumps(out, indent=2))
     return 0 if out["http"] == "ok" else 1
@@ -563,8 +563,9 @@ def cmd_status(a):
 def cmd_renew(a):
     cfg = load_cfg(a.prefix)
     req = write_request(cfg)
-    print(f"Renewal request written: {req}\nSign it on the root machine "
-          f"(srnet-host root sign request.json --days 90), then run install-delegation.")
+    print(f"Renewal request written: {req}\nCopy it to your own computer and sign it "
+          f"(./bin/srnet-host root sign request.json --days 90), then bring delegation.json back "
+          f"and run install-delegation again.")
 
 
 def cmd_backup(a):
@@ -1054,9 +1055,9 @@ def main(argv=None):
     sesh_args(p)
     p.set_defaults(fn=cmd_sesh)
 
-    r = sp.add_parser("root", help="offline root machine commands").add_subparsers(dest="rc",
+    r = sp.add_parser("root", help="root key commands (run on your own computer)").add_subparsers(dest="rc",
                                                                                    required=True)
-    p = r.add_parser("init", help="create an offline root key")
+    p = r.add_parser("init", help="create your root key")
     p.add_argument("--dir", default="./srnet-root")
     p.set_defaults(fn=cmd_root_init)
     p = r.add_parser("sign", help="sign a host's request.json")

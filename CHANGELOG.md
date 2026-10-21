@@ -11,6 +11,9 @@
 - The next steps `init` prints are the exact commands to run from the pack folder, with `sudo`
   where it is needed.
 - Shorter README and host guide.
+- The README and host guide walk through setup step by step and say which steps run on the
+  server and which on your own computer, where the root key stays.
+- Clearer `srnet-host` help and messages about the root key.
 
 ## [0.5.0] - 2026-10-20
 

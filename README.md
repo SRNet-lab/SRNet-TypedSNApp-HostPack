@@ -10,32 +10,32 @@
 
 Full history: [CHANGELOG.md](CHANGELOG.md)
 
-Run your own SRNet community host: a **message board, store, wiki, chat rooms, file drop, profile
-directory, community directory or mail host**. The apps are built into the SRNet client. Your server just stores and
-serves signed data. Your root key stays offline.
+Run your own SRNet host on a server: a **message board, store, wiki, chat rooms, file drop,
+profile directory, community directory or mail host**. People use it from the SRNet app. Your
+server only stores and serves signed data.
 
 This is beta software.
-
-Hosting a file drop makes you a Storage Seller. The SRNet client encrypts files on the
-uploader's computer with ChaCha20-Poly1305 before upload, unless the uploader chooses to publish
-a file unencrypted, so with encryption on you store only ciphertext. Mail is sealed the same way
-on the sender's computer, so a mail host can't read the mail it holds.
-
-**Coming soon:** Storage Sellers will be able to turn off public hosting, so they hold only
-encrypted files they can't read.
 
 SRNet is an independent project. It is not affiliated with or endorsed by the Session Foundation
 or the Session Technology Foundation.
 
-Running a mail host? It's open to new inboxes by default (cap 1000); close sign-up any time with
-`srnet-host mail --prefix <dir> --closed`. See *Running a mail host* in `docs/HOST-GUIDE.md`.
+## Before you start
 
-Guide: [Typed SNApps: an illustrated walkthrough](docs/Typed-SNApps-Walkthrough.pdf) (PDF), a
-screen-by-screen tour of the client, ending with how to run a host.
+You need two machines:
 
-## Install
+- **A server** for the host (Debian or Ubuntu with Python 3.10 or newer; Ubuntu 24.04 x86_64 for
+  the Session Router step).
+- **Your own computer** (a laptop or desktop, not the server). It keeps your **root key**, the
+  master key that proves the host is yours. Keeping it off the server means someone who breaks
+  into the server can't take over your host. You use it to approve the server now and again
+  every 90 days.
 
-On the server (Debian or Ubuntu; Python 3.10 or newer):
+## Set up a chat room host
+
+Each step says where it runs. The full guide, with every host type and option, is
+[docs/HOST-GUIDE.md](docs/HOST-GUIDE.md).
+
+**1. On the server: download the pack.**
 
 ```sh
 cd ~
@@ -45,31 +45,44 @@ git clone https://github.com/SRNet-lab/SRNet-TypedSNApp-HostPack.git
 cd SRNet-TypedSNApp-HostPack
 ```
 
-Your root key lives on a separate, offline machine. Clone the same repository there too (only
-`python3` and `python3-cryptography` are needed).
+**2. On your computer: download the pack and make your root key.**
 
-Then follow [docs/HOST-GUIDE.md](docs/HOST-GUIDE.md). The short version, run from the
-`SRNet-TypedSNApp-HostPack` folder:
+```sh
+cd ~
+sudo apt install -y git python3 python3-cryptography
+git clone https://github.com/SRNet-lab/SRNet-TypedSNApp-HostPack.git
+cd SRNet-TypedSNApp-HostPack
+./bin/srnet-host root init
+```
 
-    ./bin/srnet-host root init                    # on your OFFLINE machine
-    sudo ./bin/srnet-host init --type rooms --name lobby --sesh new  # on the server
-    ./bin/srnet-host root sign request.json --days 90               # offline machine
-    sudo ./bin/srnet-host install-delegation delegation.json --prefix /opt/srnet-host/lobby
-    # install Session Router (below), then:
-    sudo ./bin/srnet-host front --sesh-import /opt/srnet-host/lobby/sesh/identity.key \
-        --host /opt/srnet-host/lobby                                 # the .sesh name
-    sudo ufw allow in on sr-front to any port 80 proto tcp
-    sudo ./bin/srnet-host status --prefix /opt/srnet-host/lobby
-    ./bin/srnet-host link --prefix /opt/srnet-host/lobby             # invite links to share
+Back up `srnet-root/root.key` (a USB stick, or a paper copy).
 
-Types: `board`, `store`, `wiki`, `rooms` (`--room` adds more rooms), `files`, `people`,
-`directory`, `mail`. Later: `renew`, `upgrade`, `backup`, `mail --closed/--open`,
-`root directory-entry` + `directory-submit` to list your community in a directory, and `front`
-to serve several hosts under one `.sesh` name.
+**3. On the server: create the host.**
 
-To give your host a `.sesh` name, install the SRNet build of Session Router
-([Session-Router-SRNet](https://github.com/SRNet-lab/Session-Router-SRNet), the same one the
-SRNet client uses) on the server and run `srnet-host front`. On Ubuntu 24.04:
+```sh
+sudo ./bin/srnet-host init --type rooms --name lobby --sesh new
+```
+
+It prints the server's host key and writes `/opt/srnet-host/lobby/request.json`.
+
+**4. On your computer: approve the server.**
+
+```sh
+scp you@your-server:/opt/srnet-host/lobby/request.json .
+./bin/srnet-host root sign request.json --days 90
+scp delegation.json you@your-server:SRNet-TypedSNApp-HostPack/
+```
+
+Before you answer `y`, check that the host key it shows is the one from step 3.
+
+**5. On the server: start the host.**
+
+```sh
+sudo ./bin/srnet-host install-delegation delegation.json --prefix /opt/srnet-host/lobby
+```
+
+**6. On the server: install Session Router**, the same SRNet build the SRNet app uses
+([Session-Router-SRNet](https://github.com/SRNet-lab/Session-Router-SRNet)):
 
 ```sh
 cd /tmp
@@ -80,17 +93,55 @@ echo "5c1c9b553b25649657f9f8e3ae0431aa3fe0534c82e65214588c728307bf3237  session-
 cd ~/SRNet-TypedSNApp-HostPack
 ```
 
-The server does not need the SRNet client. *Letting people in* in the guide has the rest.
+You should see `OK` after the file name before apt starts.
 
-Signed release tarballs (see [RELEASING.md](RELEASING.md)) are not published yet; install from git.
+**7. On the server: give the host its `.sesh` address and open the firewall.**
+
+```sh
+sudo ./bin/srnet-host front --sesh-import /opt/srnet-host/lobby/sesh/identity.key \
+    --host /opt/srnet-host/lobby
+sudo ufw allow in on sr-front to any port 80 proto tcp
+```
+
+The address answers within a minute or two. The server does not need the SRNet app.
+
+**8. Share your invite link.**
+
+```sh
+./bin/srnet-host link --prefix /opt/srnet-host/lobby
+```
+
+People paste the link on Home in the SRNet app.
+
+Every 90 days, run `sudo ./bin/srnet-host renew --prefix /opt/srnet-host/lobby` on the server
+and repeat steps 4 and 5. `sudo ./bin/srnet-host status --prefix /opt/srnet-host/lobby` tells you
+when renewal is due.
+
+## Other host types
+
+Use another `--type` in step 3: `board`, `store`, `wiki`, `rooms` (`--room` adds more rooms),
+`files`, `people`, `directory` or `mail`. Several hosts can share one `.sesh` address. See
+[docs/HOST-GUIDE.md](docs/HOST-GUIDE.md).
+
+Hosting a file drop makes you a Storage Seller. The SRNet app encrypts files on the uploader's
+computer before upload, unless the uploader chooses to publish a file unencrypted, so with
+encryption on you store only ciphertext. Mail is sealed the same way on the sender's computer,
+so a mail host can't read the mail it holds.
+
+**Coming soon:** Storage Sellers will be able to turn off public hosting, so they hold only
+encrypted files they can't read.
+
+A mail host is open to new inboxes by default (up to 1000). Close sign-up any time with
+`sudo ./bin/srnet-host mail --prefix <dir> --closed`.
 
 ## Contents
 
 | Path | What |
 |---|---|
-| `bin/srnet-host` | installer / operator tool |
+| `bin/srnet-host` | installer and admin tool |
 | `mbfmt/ mbhost/ typed/ mbclient/` | host code (and a minimal client used by `scripts/demo.py`) |
 | `docs/HOST-GUIDE.md` | step-by-step guide |
+| `docs/Typed-SNApps-Walkthrough.pdf` | an illustrated tour of the client, ending with how to run a host |
 | `docs/LICENSES.md` | licence notes |
 | `tests/` | automated tests |
 | `RELEASING.md` | how maintainers build and sign releases |
