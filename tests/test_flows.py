@@ -430,5 +430,70 @@ print(json.dumps(out))
         self.assertTrue(out["open_link"] and out["open_plain"] and out["owner_opens_gated"])
 
 
+class FrontRefusals(unittest.TestCase):
+    """A refused request closes the connection, so its unread body is never taken as a new request."""
+
+    def setUp(self):
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        import srnet_front as FR
+        hits = self.hits = []
+
+        class Back(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def do_GET(self):
+                hits.append(self.path)
+                self.send_response(200)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            do_POST = do_GET
+
+            def log_message(self, *a):
+                pass
+        self.back = ThreadingHTTPServer(("127.0.0.1", 0), Back)
+        self.front = ThreadingHTTPServer(("127.0.0.1", 0), FR.make_handler(
+            [("/c/x", self.back.server_address[1])], ["x"]))
+        for srv in (self.back, self.front):
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            self.addCleanup(srv.server_close)
+            self.addCleanup(srv.shutdown)
+        self.assertEqual(FR.make_handler([], []).timeout, 60)
+
+    def raw(self, data):
+        s = socket.create_connection(self.front.server_address, timeout=5)
+        s.sendall(data)
+        out = b""
+        try:
+            while True:
+                b = s.recv(65536)
+                if not b:
+                    break
+                out += b
+        except socket.timeout:
+            pass
+        s.close()
+        return out
+
+    def test_refused_requests_close(self):
+        inner = b"GET /c/x/smuggled HTTP/1.1\r\nHost: a\r\n\r\n"
+        cases = [
+            b"POST /c/x/a HTTP/1.1\r\nHost: a\r\nContent-Length: 999999999\r\n\r\n" + inner,
+            b"POST /c/x/a HTTP/1.1\r\nHost: a\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n" + inner,
+            b"POST /c/x/a HTTP/1.1\r\nHost: a\r\nContent-Length: -5\r\n\r\n" + inner,
+            b"POST /nope HTTP/1.1\r\nHost: a\r\nContent-Length: 0\r\n\r\n" + inner,
+        ]
+        for c in cases:
+            r = self.raw(c)
+            self.assertEqual(r.count(b"HTTP/1.1 "), 1, r)
+            self.assertIn(b"Connection: close", r)
+        self.assertEqual(self.hits, [])
+        r = self.raw(b"GET /c/x/a HTTP/1.1\r\nHost: a\r\nConnection: close\r\n\r\n")
+        self.assertTrue(r.startswith(b"HTTP/1.1 200"), r)
+        self.assertEqual(self.hits, ["/c/x/a"])
+
+
 if __name__ == "__main__":
     unittest.main()

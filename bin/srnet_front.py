@@ -36,14 +36,18 @@ def make_handler(routes, colls):
     whole = any(pre == "" for pre, _ in routes)   # a board host owns the whole name
     class H(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+        timeout = 60   # an idle or stalled caller doesn't hold a thread forever
 
         def log_message(self, *a):
             pass
 
-        def _send(self, code, body: bytes, ctype="application/json"):
+        def _send(self, code, body: bytes, ctype="application/json", close=False):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
+            if close:   # the request body was not read: never parse the rest as a new request
+                self.close_connection = True
+                self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(body)
 
@@ -59,10 +63,17 @@ def make_handler(routes, colls):
                 return self._send(200, json.dumps({"collections": colls}).encode())
             port = self._route()
             if port is None:
-                return self._send(404, b'{"error":"no such collection on this host"}')
-            n = int(self.headers.get("Content-Length") or 0)
+                return self._send(404, b'{"error":"no such collection on this host"}', close=True)
+            if self.headers.get("Transfer-Encoding"):
+                return self._send(400, b'{"error":"send a Content-Length"}', close=True)
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = -1
+            if n < 0:
+                return self._send(400, b'{"error":"bad Content-Length"}', close=True)
             if n > MAX_BODY:
-                return self._send(413, b'{"error":"too large"}')
+                return self._send(413, b'{"error":"too large"}', close=True)
             body = self.rfile.read(n) if n else None
             hdrs = {k: v for k, v in self.headers.items()
                     if k.lower() not in HOP and k.lower() not in ("host", "x-forwarded-for")}
