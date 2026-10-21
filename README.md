@@ -8,6 +8,8 @@
 - Exits now have their own repository,
   [SRNet-VPSHost-ExitPack](https://github.com/SRNet-lab/SRNet-VPSHost-ExitPack).
 
+Full history: [CHANGELOG.md](CHANGELOG.md)
+
 Run your own SRNet community host: a **message board, store, wiki, chat rooms, file drop, profile
 directory, community directory or mail host**. The apps are built into the SRNet client. Your server just stores and
 serves signed data. Your root key stays offline, and the host listens only on `127.0.0.1`
