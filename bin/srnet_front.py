@@ -6,6 +6,7 @@ loopback-only hosts:  /c/<collection>/...  -> the hub serving that collection
                       /v1/mail/...         -> the mail host
                       /v1/collections      -> merged list from every hub
                       extra routes         -> other loopback services (e.g. /relayer)
+                      /                    -> a board host, when it is the only host
 X-Forwarded-For is set to the caller's tun address (any incoming value is dropped), so
 loopback services can rate-limit per caller.
 Routes come from routes.json, written by `srnet-host front`. Stdlib only.
@@ -32,6 +33,7 @@ def load(path):
 
 
 def make_handler(routes, colls):
+    whole = any(pre == "" for pre, _ in routes)   # a board host owns the whole name
     class H(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
@@ -53,7 +55,7 @@ def make_handler(routes, colls):
             return None
 
         def _proxy(self):
-            if self.path.split("?", 1)[0] == "/v1/collections" and self.command == "GET":
+            if self.path.split("?", 1)[0] == "/v1/collections" and self.command == "GET" and not whole:
                 return self._send(200, json.dumps({"collections": colls}).encode())
             port = self._route()
             if port is None:

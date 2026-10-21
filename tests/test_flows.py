@@ -122,8 +122,8 @@ class Flows(unittest.TestCase):
         self.assertEqual(st["links"], [f"srnet://{st['sesh']}/board/news#root={self.pin}"])
         self.assertEqual(self.status("store")[1]["sesh"], self.vanity)
         self.assertIsNone(self.status("wiki")[1]["sesh"])
-        ini = open(f"{self.hosts['board']['pre']}/sesh/router.ini").read()
-        self.assertIn(f"80=127.0.0.1:{self.hosts['board']['port']}", ini)
+        self.assertFalse(os.path.exists(f"{self.hosts['board']['pre']}/sesh/router.ini"))
+        self.assertFalse(os.path.exists(f"{self.hosts['board']['pre']}/sesh/ENABLE.txt"))
         self.assertIn("invite link: srnet://", self.hosts["board"]["install_out"])
         for ln in st["links"] + self.status("store")[1]["links"]:
             J.parse(ln)  # the client accepts these links
@@ -265,8 +265,10 @@ print(json.dumps(out))
                                 + k2.public_key().public_bytes(ser.Encoding.Raw, ser.PublicFormat.Raw)).hex())
         self.assertNotEqual(run("front", "--prefix", f"{self.t}/front", "--sesh-import", other,
                                 "--no-systemd", *hargs, ok=False).returncode, 0)
-        self.assertNotEqual(run("front", "--prefix", f"{self.t}/front2", "--sesh-import", kf, "--no-systemd",
-                                "--host", self.hosts["board"]["pre"], ok=False).returncode, 0)
+        r = run("front", "--prefix", f"{self.t}/front2", "--sesh-import", kf, "--no-systemd",
+                "--host", self.hosts["board"]["pre"], *hargs, ok=False)   # a board can't share a name
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("only --host", r.stderr)
         port = free_port()
         p = subprocess.Popen([sys.executable, f"{self.t}/front/srnet_front.py", "--routes",
                               f"{self.t}/front/routes.json", "--bind", "127.0.0.1", "--port", str(port)],
@@ -281,6 +283,26 @@ print(json.dumps(out))
         self.assertEqual(urllib.request.urlopen(f"http://{host}/v1/mail/info").status, 200)
         with self.assertRaises(Exception):
             urllib.request.urlopen(f"http://{host}/c/nope/v1/info")
+
+    def test_08b_front_for_a_board_alone(self):
+        h = self.hosts["board"]
+        kf = f"{h['pre']}/sesh/identity.key"   # the key init made
+        name = S.load_cfg(h["pre"])["sesh"]["name"]
+        fp = f"{self.t}/front-board"
+        r = run("front", "--prefix", fp, "--sesh-import", kf, "--host", h["pre"], "--no-systemd")
+        self.assertIn(f".sesh name: {name}", r.stdout)
+        self.assertEqual(json.load(open(f"{fp}/routes.json"))["routes"], {"/": h["port"]})
+        self.assertNotEqual(run("front", "--prefix", fp, "--host", h["pre"], "--route", "/relayer=8645",
+                                "--no-systemd", ok=False).returncode, 0)
+        port = free_port()
+        p = subprocess.Popen([sys.executable, f"{fp}/srnet_front.py", "--routes", f"{fp}/routes.json",
+                              "--bind", "127.0.0.1", "--port", str(port)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        self.procs.append(p)
+        wait_up(port, "/v1/info")
+        direct = urllib.request.urlopen(f"http://127.0.0.1:{h['port']}/v1/info").read()
+        self.assertEqual(urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/info").read(), direct)
+        self.assertEqual(self.status("board")[1]["sesh"], name)
 
     def test_09_front_extra_route_and_forwarded_for(self):
         import http.server

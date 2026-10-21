@@ -292,8 +292,11 @@ class Sesh(unittest.TestCase):
         key = open(c["keyfile"]).read().strip()
         self.assertNotIn(key[:64], r.stdout)  # secret never printed
         self.assertEqual(oct(os.stat(c["keyfile"]).st_mode & 0o777), "0o600")
-        self.assertIn(f"127.0.0.1:{S.load_cfg(pre)['port']}", open(c["config"]).read())
-        self.assertIn(c["name"], open(f"{pre}/sesh/ENABLE.txt").read())
+        # only the key: the name is switched on with `front`, and init says how
+        self.assertEqual(os.listdir(f"{pre}/sesh"), ["identity.key"])
+        self.assertNotIn("config", c)
+        self.assertIn(f"srnet-host front --sesh-import {pre}/sesh/identity.key --host {pre}", r.stdout)
+        self.assertNotIn("ENABLE.txt", r.stdout)
         self.assertNotIn("sesh", S.unit_text(S.load_cfg(pre)))  # host unit unchanged
 
     def test_import_formats_and_name(self):
@@ -330,6 +333,62 @@ class Sesh(unittest.TestCase):
         self.assertTrue(S.load_cfg(pre)["sesh"]["name"])
         r = run("sesh", "--prefix", pre, "--sesh", "new", ok=False)
         self.assertIn("refusing to overwrite", r.stderr)
+
+    def test_sesh_help_describes_front(self):
+        out = run("sesh-help").stdout
+        for want in ("apt install -y session-router-bin", "front --sesh-import <prefix>/sesh/identity.key",
+                     "ufw allow in on sr-front to any port 80 proto tcp"):
+            self.assertIn(want, out)
+        for gone in ("router.ini", "ENABLE.txt", "bootstrap"):
+            self.assertNotIn(gone, out)
+
+    def test_upgrade_drops_old_sesh_files(self):
+        pre, _ = self.init("w3", "--sesh", "new")
+        cfg = S.load_cfg(pre)
+        cfg["sesh"]["config"] = f"{pre}/sesh/router.ini"
+        S.save_cfg(cfg)
+        open(f"{pre}/sesh/router.ini", "w").write(S.OLD_SESH_INI + " 'w3'\n[service]\n80=127.0.0.1:1\n")
+        open(f"{pre}/sesh/ENABLE.txt", "w").write("old steps\n")
+        key = open(f"{pre}/sesh/identity.key").read()
+        run("upgrade", "--prefix", pre, "--force")
+        self.assertEqual(os.listdir(f"{pre}/sesh"), ["identity.key"])
+        self.assertEqual(open(f"{pre}/sesh/identity.key").read(), key)
+        self.assertNotIn("config", S.load_cfg(pre)["sesh"])
+
+
+class SrBinary(unittest.TestCase):
+    def setUp(self):
+        self.t = tmpdir()
+        self.old = S.SR_BINARIES
+        self.addCleanup(setattr, S, "SR_BINARIES", self.old)
+
+    def test_default_order_prefers_the_apt_path(self):
+        self.assertEqual(self.old, ("/usr/bin/session-router", "/usr/local/bin/session-router"))
+
+    def test_picks_whichever_exists(self):
+        usr, local = f"{self.t}/usr-bin-sr", f"{self.t}/usr-local-bin-sr"
+        S.SR_BINARIES = (usr, local)
+        self.assertIsNone(S.find_sr_binary())
+        open(local, "w").close()
+        self.assertEqual(S.find_sr_binary(), local)
+        open(usr, "w").close()
+        self.assertEqual(S.find_sr_binary(), usr)
+        self.assertEqual(S.find_sr_binary("rel/sr"), os.path.abspath("rel/sr"))  # --sr-binary wins
+
+    def test_front_unit_uses_sr_binary_and_needs_no_bootstrap(self):
+        pre = f"{self.t}/w"
+        run("init", "--type", "wiki", "--name", "w", "--prefix", pre, "--port", str(free_port()),
+            "--sesh", "new")
+        fp = f"{self.t}/front"
+        r = run("front", "--prefix", fp, "--sesh-import", f"{pre}/sesh/identity.key", "--host", pre,
+                "--sr-binary", "/opt/sr/session-router", "--no-systemd")
+        self.assertIn(S.load_cfg(pre)["sesh"]["name"], r.stdout)
+        unit = open(f"{fp}/srnet-front-router.service").read()
+        self.assertIn(f"ExecStart=/opt/sr/session-router {fp}/router.ini", unit)
+        self.assertNotIn("[bootstrap]", open(f"{fp}/router.ini").read())
+        run("front", "--prefix", fp, "--host", pre, "--no-systemd")   # key already stored
+        unit = open(f"{fp}/srnet-front-router.service").read()
+        self.assertTrue(any(f"ExecStart={b} " in unit for b in S.SR_BINARIES), unit)
 
 
 if __name__ == "__main__":
