@@ -10,6 +10,7 @@
   does not need the SRNet client.
 - The next steps `init` prints are the exact commands to run from the pack folder, with `sudo`
   where it is needed.
+- Shorter README and host guide.
 
 ## [0.5.0] - 2026-10-20
 

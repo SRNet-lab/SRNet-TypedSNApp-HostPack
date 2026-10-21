@@ -12,11 +12,9 @@ Full history: [CHANGELOG.md](CHANGELOG.md)
 
 Run your own SRNet community host: a **message board, store, wiki, chat rooms, file drop, profile
 directory, community directory or mail host**. The apps are built into the SRNet client. Your server just stores and
-serves signed data. Your root key stays offline, and the host listens only on `127.0.0.1`
-until you choose to open it up through your own `.sesh` name.
+serves signed data. Your root key stays offline.
 
-This is beta software. Stores never handle money: buyers pay the seller's own address from
-their own wallet, and your server only stores the signed listings and orders.
+This is beta software.
 
 Hosting a file drop makes you a Storage Seller. The SRNet client encrypts files on the
 uploader's computer with ChaCha20-Poly1305 before upload, unless the uploader chooses to publish
