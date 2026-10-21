@@ -28,7 +28,7 @@ PACK_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PACK_ROOT)
 import mbfmt as F  # noqa: E402
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 # host type -> (process, collection kind).  "board" runs the message-board host; the rest
 # run the typed hub with one collection.
 TYPES = {"board": ("board", None), "store": ("hub", "shop"), "wiki": ("hub", "wiki"),

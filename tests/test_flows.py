@@ -3,7 +3,8 @@
 init for every type (rooms with extra rooms, mail, directory), .sesh make / import / skip,
 root sign, install-delegation, run, status, link, directory-entry + directory-submit,
 mail --closed / --open, upgrade.  With SRNET_CLIENT pointing at an SRNet-Desktop checkout
-(default ../SRNet-Desktop), the real client also joins, reads the directory and uses mail."""
+(default ../SRNet-Desktop), the real client also joins, reads the directory, uses mail, lists
+and pays for a USDC item in a store, and uploads and opens files on a file drop."""
 import json, os, signal, socket, subprocess, sys, time, unittest, urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 PACK = os.path.dirname(HERE)
@@ -322,6 +323,89 @@ print(json.dumps(out))
                                    headers={"X-Forwarded-For": "6.6.6.6", "Content-Type": "application/json"})
         self.assertEqual(urllib.request.urlopen(q).status, 200)
         self.assertEqual(seen, [("/relayer/fund", "127.0.0.1")])  # the caller's address, never the spoofed one
+
+    def test_10_store_takes_direct_usdc_listings(self):
+        seller = F.new_key()
+        h = self.setup_host("store", "market", ["--seller", F.pub_hex(seller), "--sesh", "skip"])
+        base = f"http://127.0.0.1:{h['port']}/c/market"
+        pay_to = "0x" + "12" * 20
+
+        def listing(body):
+            return submit([base], make_record(seller, KIND_TYPES["shop"], "market", "shop.listing",
+                                              dict({"title": "Sticker pack", "price": "1.50"}, **body),
+                                              [], pow_bits=16))
+        r = listing({"currency": "USDC", "chain_id": 42161, "pay_to": pay_to})
+        self.assertTrue(r.get("ok"), r)  # real USDC on Arbitrum One
+        self.assertTrue(listing({"currency": "USDC", "chain_id": 8453, "pay_to": pay_to}).get("ok"))
+        r = listing({"currency": "USDC", "chain_id": 1, "pay_to": pay_to})
+        self.assertFalse(r.get("ok"))
+        self.assertIn("Arbitrum One", r.get("error", ""))
+        r = listing({"currency": "SRNET", "vendor_id": "0x" + "ab" * 32})
+        self.assertEqual(r.get("error"), "seller needs to update")
+        r = listing({"currency": "ETH", "chain_id": 42161, "pay_to": pay_to})
+        self.assertEqual(r.get("error"), "ETH payments are testnet-only")
+
+    @unittest.skipUnless(HAVE_CLIENT, "SRNet-Desktop checkout not found")
+    def test_11_real_client_store_and_file_drop(self):
+        seed = os.urandom(32)
+        seller = F.key_from_seed(seed)
+        h = self.setup_host("store", "bazaar", ["--seller", F.pub_hex(seller), "--sesh", "skip"])
+        os.makedirs(f"{self.t}/seller-client", exist_ok=True)
+        with open(f"{self.t}/seller-client/author.key", "wb") as f:
+            f.write(seed)
+        code = r'''
+import json, sys, os
+sys.path[:0] = [os.path.join(sys.argv[1], "snapps")]
+from typed.core import Core
+a = json.loads(sys.argv[2])
+s = Core(a["seller"], {}, autoconfirm=True)
+b = Core(a["buyer"], {}, autoconfirm=True)
+out = {}
+def done(c, r):
+    return (r.get("result") or c.confirm(r["token"])).get("ok")
+for c in (s, b):
+    c.join(a["store"]); c.join(a["files"])
+d = s.draft("bazaar", "shop.listing", {"title": "Sticker pack", "price": "1.50", "currency": "USDC",
+                                       "chain_id": 42161, "pay_to": a["pay_to"]}, [])
+out["listed"] = done(s, d)
+b.sync("bazaar")
+ls = b.view("bazaar")["view"]["listings"]
+out["payable"] = [(l["title"], l["payable"], l["currency"], l["chain_id"]) for l in ls]
+sheet = b.pay_draft("bazaar", ls[0]["id"])
+out["sheet"] = [sheet["sheet"]["network"], sheet["sheet"]["to"], sheet["sheet"]["token_address"],
+                sheet["sheet"]["amount"].startswith("1.50")]
+o = b.pay_order(sheet["token"], "0x" + "cd" * 32)
+out["ordered"] = done(b, o)
+s.sync("bazaar")
+orders = s.view("bazaar")["view"]["listings"][0].get("orders", [])
+out["orders"] = [(x["chain_id"], x["tx"][:6], x["amount"] == sheet["sheet"]["amount"]) for x in orders]
+data = b"meeting notes\n" * 50
+for mode in ("gated", "link", "plain"):
+    u = s.upload("files", data, mode + ".txt", "text/plain", note=mode, mode=mode)
+    assert done(s, u), u
+s.sync("files"); b.sync("files")
+items = {i["note"]: i for i in b.view("files")["view"]["items"]}
+out["drop"] = sorted((n, i["encrypted"], i["can_open"]) for n, i in items.items())
+out["open_link"] = b.open_link(s.share_link("files", items["link"]["id"])["link"])[0] == data
+out["open_plain"] = b.open_file("files", items["plain"]["id"])[0] == data
+out["owner_opens_gated"] = s.open_file("files", items["gated"]["id"])[0] == data
+print(json.dumps(out))
+'''
+        pay_to = "0x" + "12" * 20
+        args = {"seller": f"{self.t}/seller-client", "buyer": f"{self.t}/buyer-client", "pay_to": pay_to,
+                "store": J.make(f"127.0.0.1:{h['port']}", "shop", "bazaar", self.pin),
+                "files": J.make(f"127.0.0.1:{self.hosts['files']['port']}", "drop", "files", self.pin)}
+        r = subprocess.run([sys.executable, "-c", code, CLIENT, json.dumps(args)], capture_output=True,
+                           text=True, timeout=300)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertTrue(out["listed"])
+        self.assertEqual(out["payable"], [["Sticker pack", True, "USDC", 42161]])
+        self.assertEqual(out["sheet"], ["Arbitrum One", pay_to, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", True])
+        self.assertTrue(out["ordered"])
+        self.assertEqual(out["orders"], [[42161, "0xcdcd", True]])
+        self.assertEqual(out["drop"], [["gated", True, False], ["link", True, False], ["plain", False, True]])
+        self.assertTrue(out["open_link"] and out["open_plain"] and out["owner_opens_gated"])
 
 
 if __name__ == "__main__":

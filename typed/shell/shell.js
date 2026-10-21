@@ -1,8 +1,9 @@
 // Trusted shell.  Talks to the core API (X-Core header) and relays verified views into the
 // sandboxed template frame.  Messages from the frame are untrusted requests: only "ready",
 // "draft", "action", "delete", "pay", "download", the file messages ("open", "link", "request",
-// "access", "approve", "newver"), "join" (a directory Join button: only opens the join sheet) and (test mode) "report" are understood. Keys and links stay here and in the core; and
-// drafts are shown in this trusted sheet before the core signs anything.
+// "access", "approve", "newver"), "join" (a directory Join button: only opens the join sheet), "verify" and (test mode) "report" are understood. Keys and links stay here and in the core; and
+// drafts are shown in this trusted sheet before the core signs anything. Add-on tabs (e.g. Exits) are
+// scripts served by the core from this origin (/addon/<name>/tab.js); they call /api/addon/<name>/*.
 "use strict";
 let S = null, cur = null, frame = null, timer = null;
 const $ = (id) => document.getElementById(id);
@@ -13,12 +14,14 @@ async function api(path, body, raw) {
   return r.json();
 }
 function el(t, txt) { const e = document.createElement(t); if (txt !== undefined) e.textContent = String(txt); return e; }
-function sheet(title, sub, lines, buttons, pw, input) {
-  $("sheet-pwl").hidden = !pw; $("sheet-inl").hidden = !input; $("sheet-in").value = ""; $("sheet-inlt").textContent = input || ""; $("sheet-pw").value = "";
+function sheet(title, sub, lines, buttons, img, input) {
+  $("sheet-inl").hidden = !input; $("sheet-in").value = ""; $("sheet-inlt").textContent = input || "";
+  const im = $("sheet-img"); im.hidden = !img; im.removeAttribute("src");
+  if (img) im.src = img; // reviewed: img is only ever a blob: URL of the core's own QR svg (img-src allows blob: only)
   $("sheet-title").textContent = title; $("sheet-sub").textContent = sub || "";
   $("sheet-body").textContent = lines.join("\n");
   const b = $("sheet-buttons"); b.replaceChildren();
-  buttons.forEach(([label, fn]) => { const x = el("button", label); x.addEventListener("click", async () => { $("sheet").hidden = true; await fn(); }); b.appendChild(x); });
+  buttons.forEach(([label, fn, keep]) => { const x = el("button", label); x.addEventListener("click", async () => { if (!keep) $("sheet").hidden = true; await fn(x); }); b.appendChild(x); });
   $("sheet").hidden = false;
 }
 async function saveFile(path, body) {
@@ -50,14 +53,29 @@ async function onFile(m) {
 function post(msg) { if (frame && frame.contentWindow) frame.contentWindow.postMessage(msg, "*"); }
 async function push() { if (!cur) return; const v = await api("view/" + encodeURIComponent(cur.name) + "?read=1"); post({type: "view", data: v}); if (!SIDE.loaded) side();
   const st = v.status || {}; $("status").textContent = cur.name + " · " + (st.error ? "STALE: " + st.error : "verified via " + (st.host || "-")) + (v.hidden ? " · " + v.hidden + " hidden by host" : ""); }
-function show(which) { // "frame" | "home" | "wallet"
-  $("tpl").hidden = which !== "frame"; $("home").hidden = which !== "home"; $("wallet").hidden = which !== "wallet";
+function show(which) { // "frame" | "home" | "addon:<name>"
+  $("tpl").hidden = which !== "frame"; $("home").hidden = which !== "home";
+  document.querySelectorAll("section.addon").forEach((x) => { const on = which === "addon:" + x.dataset.addon; if (x.hidden === on) { x.hidden = !on; const a = (window.SRNetAddons || {})[x.dataset.addon]; if (a) (on ? a.show : (a.hide || (() => {})))(); } });
   if (which !== "frame") { cur = null; clearInterval(timer); $("upload").hidden = true; }
+}
+// Add-on tabs: a ribbon button and a section each; the tab script registers window.SRNetAddons[name].
+const SHELL_API = {api, el, sheet: (t, s, l, b) => sheet(t, s, l, b), status: (m) => { $("status").textContent = m; }};
+function addonTabs(list) {
+  (list || []).forEach((a) => {
+    if (!/^[a-z][a-z0-9-]{0,31}$/.test(a.name)) return;
+    const b = el("button", a.title); b.dataset.b = "addon:" + a.name; $("ribbon").appendChild(b);
+    const sec = el("section"); sec.className = "addon"; sec.dataset.addon = a.name; sec.hidden = true; $("addons").appendChild(sec);
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "/addon/" + a.name + "/tab.css"; document.head.appendChild(css);
+    const sc = document.createElement("script");
+    sc.src = "/addon/" + a.name + "/tab.js"; // reviewed: same-origin path, name checked above; served by the core
+    sc.addEventListener("load", () => { const t = (window.SRNetAddons || {})[a.name]; if (!t) return; t.mount(sec, SHELL_API); if (!sec.hidden) t.show(); });
+    document.head.appendChild(sc);
+  });
 }
 function ribbon(b) { document.querySelectorAll("#ribbon button").forEach((x) => x.classList.toggle("on", x.dataset.b === b)); }
 function open(c) {
   if (c.root_mismatch) return mismatch(c);
-  cur = c; show("frame"); ribbon(c.kind === "exit" ? "exits" : "");
+  cur = c; show("frame"); ribbon("");
   document.querySelectorAll("#side .item").forEach((b) => b.classList.toggle("on", b.dataset.id === c.name));
   $("upload").hidden = c.kind !== "drop";
   frame.src = "/frame/" + encodeURIComponent(c.template) + "?c=" + encodeURIComponent(c.name);
@@ -143,18 +161,16 @@ window.addEventListener("message", async (ev) => {
     if (m.type === "draft") return onDraft(m);
     if (m.type === "action") { await api("action", {name: String(m.name), args: {target: String(m.target || "")}}); return push(); }
     if (m.type === "delete") { await api("delete", {c: cur.name, id: String(m.id)}); return push(); }
-    if (m.type === "pay") { const r = await api("pay", {c: cur.name, listing: String(m.listing)});
-      if (!r.ok) { $("status").textContent = "payment refused: " + r.error; return; }
-      const s = r.sheet;
-      if (r.srnet) return sheet(s.title, s.note, s.lines, [["Pay", async () => { const pr = await api("pay/confirm", {token: r.token, passphrase: $("sheet-pw").value}); $("sheet-pw").value = "";
-        $("status").textContent = pr.ok ? "paid " + (pr.amount / 1e6).toFixed(2) + " USDC (lease " + pr.lease_id + ")" : "payment failed: " + pr.error; push(); }], ["Cancel", async () => {}]], true);
-      return sheet("Payment details (" + s.network + ")", s.note, ["item: " + s.item, "seller: " + s.seller, "amount: " + s.amount + " " + s.currency, "to: " + s.to, "chain id: " + s.chain_id], [["Close", async () => {}]]); }
+    if (m.type === "pay") return onPay(String(m.listing || ""));
     if (m.type === "download" && /^[0-9a-f]{64}$/.test(m.sha256)) {
       return sheet("Download file?", "verified by hash before saving", ["sha256: " + m.sha256], [["Download", async () => {
         const r = await fetch("/api/blob/" + encodeURIComponent(cur.name) + "/" + m.sha256, {headers: {"X-Core": "1"}});
         if (!r.ok) { $("status").textContent = "blob unavailable"; return; }
         const url = URL.createObjectURL(await r.blob()); const a = el("a"); a.href = url; a.download = m.sha256.slice(0, 12) + ".bin"; a.click(); URL.revokeObjectURL(url); }], ["Cancel", async () => {}]]); }
-    if (m.type === "verify") { const r = await api("pay/verify", {c: cur.name, order: String(m.order || "")}); $("status").textContent = r.ok ? (r.paid ? "order paid on-chain" : "NOT paid on-chain") : r.error; return; }
+    if (m.type === "verify") { const r = await api("pay/verify", {c: cur.name, order: String(m.order || "")});
+      if (!r.ok) { $("status").textContent = r.error || r.err || "can't check"; return; }
+      if (!r.checked) return sheet("Check this payment", "", [r.note || "", r.link || ""].filter(Boolean), [["Copy link", async () => { try { await navigator.clipboard.writeText(r.link || ""); } catch (e) {} }], ["Close", async () => {}]]);
+      return sheet(r.paid ? "Paid" : "Not paid (yet)", r.link || "", r.paid ? ["amount: " + r.amount + " USDC", "from: " + r.from, "chain: " + r.chain, "block: " + r.block] : [r.why || "no matching payment"], [["Close", async () => {}]]); }
     if (m.type === "join") return joinFlow(String(m.link || "").slice(0, 400));
     if (["open", "link", "request", "approve", "newver", "access"].includes(m.type)) return onFile(m);
     if (m.type === "report" && S.test) { $("report").hidden = false; $("report").textContent += JSON.stringify(m.data) + "\n"; return; }
@@ -162,15 +178,32 @@ window.addEventListener("message", async (ev) => {
 });
 document.addEventListener("DOMContentLoaded", async () => {
   frame = $("tpl"); S = await api("collections");
-  const exits = S.collections.filter((c) => c.kind === "exit");
-  document.querySelectorAll("#ribbon button").forEach((b) => b.addEventListener("click", () => {
+  addonTabs(S.addons);
+  $("ribbon").addEventListener("click", (ev) => { const b = ev.target.closest("button"); if (!b) return;
     if (b.dataset.b === "home") { show("home"); ribbon("home"); }
-    else if (b.dataset.b === "wallet") { show("wallet"); ribbon("wallet"); $("wallet-keys").textContent = "posting key: " + S.me; }
-    else if (exits.length) open(exits[0]); else { show("home"); $("status").textContent = "no exit list configured"; } }));
+    else if (b.dataset.b && b.dataset.b.startsWith("addon:")) { cur = null; show(b.dataset.b); ribbon(b.dataset.b); } });
+  $("preflight-go").addEventListener("click", async () => {
+    $("preflight-sum").textContent = "checking… (up to a minute)"; $("preflight-go").disabled = true;
+    try { const r = await api("preflight", {});
+      if (!r.ok) { $("preflight-sum").textContent = "couldn't run: " + r.err; return; }
+      $("preflight-sum").textContent = "result: " + r.report.preflight + " · report saved to " + r.file;
+      $("preflight-out").textContent = r.text; $("preflight-out").hidden = false;
+    } finally { $("preflight-go").disabled = false; } });
   $("join-go").addEventListener("click", () => joinFlow($("joinlink").value.trim()));
   $("joinlink").addEventListener("keydown", (e) => { if (e.key === "Enter") joinFlow($("joinlink").value.trim()); });
   setInterval(side, 10000);
-  $("modtoggle").addEventListener("click", async () => { const on = $("modtoggle").dataset.on === "1"; await api("moderation", {mode: on ? "honour" : "ignore"}); $("modtoggle").dataset.on = on ? "0" : "1"; $("modtoggle").textContent = on ? "Show host-hidden" : "Honour host hides"; push(); });
+  $("modtoggle").addEventListener("click", async () => {
+    const on = $("modtoggle").dataset.on === "1";
+    await api("moderation", {mode: on ? "honour" : "ignore"});
+    $("modtoggle").dataset.on = on ? "0" : "1";
+    $("modtoggle").textContent = on ? "Show host-hidden" : "Honor host hides";
+    const tip = on
+      ? "Shows posts and files the host has hidden, so you can still read them. Off by default: the client honors host hides."
+      : "Currently showing host-hidden posts and files. Click to honor host hides again.";
+    $("modtoggle").title = tip;
+    if ($("modhint")) $("modhint").title = tip;
+    push();
+  });
   $("send-file").addEventListener("click", async () => { const f = $("file").files[0]; if (!f) return;
     const prev = $("upload").dataset.prev || ""; delete $("upload").dataset.prev;
     const q = "upload?c=" + encodeURIComponent(cur.name) + "&name=" + encodeURIComponent(f.name) + "&mime=" + encodeURIComponent(f.type || "application/octet-stream") + "&note=" + encodeURIComponent($("note").value) + "&mode=" + encodeURIComponent($("mode").value) + "&to=" + encodeURIComponent($("to").value) + (prev ? "&prev=" + encodeURIComponent(prev) : "");
@@ -181,6 +214,31 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("openlink-go").addEventListener("click", async () => { const link = $("openlink").value.trim(); if (link) await saveFile("file/openlink", {link}); });
   const qs = new URLSearchParams(location.search), want = qs.get("c");
   const first = want && S.collections.find((c) => c.name === want);
-  if (first) open(first); else { show("home"); ribbon("home"); side(); }
+  const tab = qs.get("tab");
+  const tabBtn = tab && /^[a-z][a-z0-9-]{0,31}$/.test(tab) ? $("ribbon").querySelector('[data-b="addon:' + tab + '"]') : null;
+  if (first) open(first); else if (tabBtn) { side(); tabBtn.click(); } else { show("home"); ribbon("home"); side(); }
   if (qs.get("join")) { $("joinlink").value = qs.get("join").slice(0, 400); joinFlow(qs.get("join")); } // a link handler: shows the sheet, never auto-joins
 });
+
+// ---- store payments: the core shows the address, the exact amount and a QR code; the buyer pays
+// from their own wallet. Nothing here sends funds. Afterwards the buyer can post the tx hash as an order.
+async function onPay(listing) {
+  const r = await api("pay", {c: cur.name, listing});
+  if (!r.ok) { $("status").textContent = "can't pay: " + (r.error || r.err || "?"); return; }
+  const s = r.sheet;
+  let img = null;
+  if (r.qr) { const q = await fetch("/api/pay/qr.svg?token=" + encodeURIComponent(r.token), {headers: {"X-Core": "1"}});
+    if (q.ok) img = URL.createObjectURL(await q.blob()); } // blob: of the core's own QR svg; img-src allows blob: only
+  const lines = ["item: " + s.item, "seller: " + s.seller, "send exactly: " + s.amount + " " + s.currency, "to: " + s.to,
+    "network: " + s.network + " (chain id " + s.chain_id + ")" + (s.testnet ? " · TEST network" : "")];
+  if (s.token_address) lines.push(s.currency + " contract: " + s.token_address);
+  lines.push("", "payment link: " + s.uri);
+  sheet("Pay " + s.amount + " " + s.currency + " on " + s.network, s.note, lines,
+    [["Copy address", async (x) => { try { await navigator.clipboard.writeText(s.to); x.textContent = "Address copied"; } catch (e) { x.textContent = "Select the address above"; } }, true],
+     ["Copy amount", async (x) => { try { await navigator.clipboard.writeText(s.amount); x.textContent = "Amount copied"; } catch (e) { x.textContent = "Select the amount above"; } }, true],
+     ["I paid: tell the seller", async () => { const tx = $("sheet-in").value.trim();
+       const d = await api("pay/order", {token: r.token, tx});
+       if (d.error) { $("status").textContent = d.error; return; }
+       draftSheet(d, "Post this order for the seller?"); }],
+     ["Close", async () => {}]], img, "Transaction hash (after paying)");
+}

@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import hashlib
 
-import mbfmt as F
-
 
 def items_from_store(store, codec) -> list[dict]:
     out = []
@@ -164,9 +162,12 @@ def shop_view(items, policy) -> dict:
     listings, reviews = {}, {}
     for it in items:
         t, a, b = it.get("t"), it.get("author"), it.get("body", {})
-        if t == "shop.listing" and a in sellers and not _listing_err(b):
+        if t == "shop.listing" and a in sellers:
+            err = _listing_err(b)
+            if err and err != "seller needs to update":
+                continue
             listings[it["id"]] = dict(b, id=it["id"], seller=a, seller_label=label(ids, a),
-                                      ts=it["ts"], active=True)
+                                      ts=it["ts"], active=True, payable=not err, note=err or "")
         elif t == "shop.withdraw":
             lid = (it["refs"] or [None])[0]
             if lid in listings and listings[lid]["seller"] == a:
@@ -174,9 +175,14 @@ def shop_view(items, policy) -> dict:
         elif t == "shop.order":
             lid = (it["refs"] or [None])[0]
             if lid in listings:
-                listings[lid].setdefault("orders", []).append(
-                    {"id": it["id"], "by": label(ids, a), "lease_id": b["lease_id"], "buyer": b["buyer"],
-                     "ts": it["ts"]})
+                o = {"id": it["id"], "by": label(ids, a), "ts": it["ts"], "note": b.get("note") or ""}
+                if "tx" in b:
+                    o.update(chain_id=b["chain_id"], tx=b["tx"])
+                    if b.get("amount"):
+                        o["amount"] = b["amount"]
+                else:  # old SRNet-balance receipt
+                    o.update(lease_id=b["lease_id"], buyer=b["buyer"])
+                listings[lid].setdefault("orders", []).append(o)
         elif t == "shop.review":
             lid = (it["refs"] or [None])[0]
             if lid in listings and listings[lid]["seller"] != a:
@@ -285,7 +291,6 @@ def host_rules(host, meta) -> str | None:
         err = shop_listing_error(meta.body)
         if err:
             return err
-        if meta.body.get("currency") != "SRNET" and meta.body["chain_id"] not in TESTNET_CHAINS \
-                and not pol.get("allow_mainnet"):
-            return "payments are testnet-only on this store"
+        if meta.body.get("currency") == "ETH" and meta.body["chain_id"] not in TESTNET_CHAINS:
+            return "ETH payments are testnet-only"
     return None
