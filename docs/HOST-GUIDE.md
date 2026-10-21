@@ -1,6 +1,6 @@
 # Running your own SRNet host
 
-*Host pack 0.4.1*
+*Host pack 0.5.0*
 
 This pack lets you run a piece of the SRNet community on your own server: a message board,
 a store, a wiki, chat rooms, a file drop, a profile directory, a directory of communities or
@@ -42,10 +42,10 @@ Types:
 | Type | Serves |
 |---|---|
 | `board` | a message board |
-| `store` | a store; buyers pay sellers from their SRNet balance in their own client |
+| `store` | a store; buyers pay the seller's own address in USDC (Arbitrum One or Base) from their own wallet |
 | `wiki` | a wiki |
 | `rooms` | one or more chat rooms (`--room NAME` adds another, repeatable) |
-| `files` | an encrypted file drop (ciphertext only; files up to 25 MiB by default) |
+| `files` | a file drop, which makes you a Storage Seller (encrypted by default; files up to 25 MiB by default) |
 | `people` | a profile directory |
 | `directory` | a directory of communities; each entry is signed by the listed collection's root key |
 | `mail` | a mail host: sealed store-and-forward mail |
@@ -189,7 +189,7 @@ don't put personal data in the reason. Removing content doesn't take back copies
 already downloaded or screenshotted. Report illegal material to the authorities where the
 law requires it.
 
-## File limits (files hosts)
+## File limits (Storage Sellers)
 
 `srnet-host init --type files … --max-file-mb 25 --quota-mb 500` sets the largest file and
 the MiB each uploader key may store (0 means no quota). Change them later with
@@ -202,10 +202,15 @@ and resume after an interruption. Make sure your disk can hold the total you all
 - It checks every record's signature and its small proof-of-work puzzle, and it applies rate
   limits. New keys get a slightly harder puzzle.
 - You can hide, remove and pin posts (see "Moderating"). Every action is signed and public.
-- **Stores never touch money.** Buyers pay sellers from their own SRNet balance in their own
-  client, and post a signed receipt the seller's client checks on-chain.
-- Files are stored as ciphertext and served only by their SHA-256 hash. You set the largest
+- **Stores never touch money.** Buyers pay the seller's own address straight from their own
+  wallet, then post a signed order naming the transaction, which the seller can check on chain.
+  There is no developer fee, no contract and no escrow.
+- As a Storage Seller you serve files only by their SHA-256 hash. The SRNet client encrypts
+  each file on the uploader's computer with ChaCha20-Poly1305 before upload, so you store only
+  ciphertext, unless the uploader chooses to publish a file unencrypted. You set the largest
   file size (25 MiB by default) and can set a storage quota per uploader (see "File limits").
+- Coming soon: Storage Sellers will be able to turn off public hosting, so they hold only
+  encrypted files they can't read.
 - You are responsible for what you host under your local laws.
 
 ## Security defaults the installer sets
