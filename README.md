@@ -55,6 +55,9 @@ Then follow [docs/HOST-GUIDE.md](docs/HOST-GUIDE.md). The short version, run fro
     sudo ./bin/srnet-host init --type rooms --name lobby --sesh new  # on the server
     ./bin/srnet-host root sign request.json --days 90               # offline machine
     sudo ./bin/srnet-host install-delegation delegation.json --prefix /opt/srnet-host/lobby
+    sudo ./bin/srnet-host front --sesh-import /opt/srnet-host/lobby/sesh/identity.key \
+        --host /opt/srnet-host/lobby                                 # the .sesh name
+    sudo ufw allow in on sr-front to any port 80 proto tcp
     sudo ./bin/srnet-host status --prefix /opt/srnet-host/lobby
     ./bin/srnet-host link --prefix /opt/srnet-host/lobby             # invite links to share
 
@@ -63,10 +66,8 @@ Types: `board`, `store`, `wiki`, `rooms` (`--room` adds more rooms), `files`, `p
 `root directory-entry` + `directory-submit` to list your community in a directory, and `front`
 to serve several hosts under one `.sesh` name.
 
-`.sesh` names need Session Router on the server: see *Letting people in* in the guide and
-`./bin/srnet-host sesh-help`. The pack never sets up Session Router as a service on its own. The
-host's `.sesh` instance is written as a config for you to start, and only `srnet-host front`
-installs router units, when you run it.
+To give your host a `.sesh` name, install Session Router on the server and run
+`srnet-host front`. *Letting people in* in the guide has the exact commands.
 
 Signed release tarballs (see [RELEASING.md](RELEASING.md)) are not published yet; install from git.
 

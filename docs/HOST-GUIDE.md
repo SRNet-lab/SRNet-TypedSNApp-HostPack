@@ -59,9 +59,13 @@ you already have (for example one from a vanity-name search), or **skip** and ad
 Flags do the same without a prompt: `--sesh new`, `--sesh-import FILE`, `--sesh skip`. Without a
 terminal the default is skip. `srnet-host sesh --prefix … --sesh new` adds a name later.
 
-This creates a host key and a file called `request.json`.
+This creates a host key and a file called `request.json`. It is in the host's folder,
+`/opt/srnet-host/<name>/request.json`. Copy it to the offline machine, for example on a USB
+stick or with `scp`.
 
 **3. Carry `request.json` to the offline machine and sign it.**
+
+Run this in the folder that holds `srnet-root`:
 
     ./bin/srnet-host root sign request.json --days 90
 
@@ -87,11 +91,38 @@ collection.
 
 ## Letting people in
 
-Out of the box your host listens **only on 127.0.0.1**. To open it up, start a separate
-Session Router instance for the host's own `.sesh` name: `init` already wrote its key and
-config to `<prefix>/sesh/`, and `sesh/ENABLE.txt` lists the exact steps. The instance maps
-`http://<name>.sesh` to the host on loopback. `srnet-host sesh-help` explains the same in
-short.
+Out of the box your host listens only on 127.0.0.1. To give it a `.sesh` name people can reach,
+install Session Router on the server and start a front for the host.
+
+**1. Install Session Router** (Ubuntu 24.04):
+
+```sh
+sudo curl -fsSLo /usr/share/keyrings/session-foundation.gpg https://deb.session.foundation/pub.gpg
+echo "deb [signed-by=/usr/share/keyrings/session-foundation.gpg] https://deb.session.foundation $(. /etc/os-release; echo $VERSION_CODENAME) main" | sudo tee /etc/apt/sources.list.d/session-foundation.list
+sudo apt update
+sudo apt install -y session-router-bin
+```
+
+**2. Start the front** with the `.sesh` key that `init` made:
+
+```sh
+sudo ./bin/srnet-host front --sesh-import /opt/srnet-host/lobby/sesh/identity.key \
+    --host /opt/srnet-host/lobby
+```
+
+It prints the name and the invite links. Both of its services start now and at every boot. If
+you skipped the `.sesh` question in `init`, first run
+`sudo ./bin/srnet-host sesh --prefix /opt/srnet-host/lobby --sesh new`. If Session Router is
+installed somewhere other than `/usr/bin` or `/usr/local/bin`, add `--sr-binary PATH`.
+
+**3. Open the firewall on the front's interface only.** If ufw is on (it is on most VPS images):
+
+```sh
+sudo ufw allow in on sr-front to any port 80 proto tcp
+```
+
+Nothing else needs opening, because Session Router only makes outgoing connections. The name
+answers within a minute or two.
 
 Then share the invite links from `srnet-host link`. Each one looks like
 
@@ -245,7 +276,7 @@ Run rooms, directory, files and mail on one server under ONE .sesh name:
 
     srnet-host init --type rooms --name lobby --sesh skip        # ... and directory, files, mail
     # sign each request.json on the root machine, then install-delegation on each
-    srnet-host front --sesh-import name.key --bootstrap mainnet.signed \
+    srnet-host front --sesh-import name.key \
         --host /opt/srnet-host/lobby --host /opt/srnet-host/directory \
         --host /opt/srnet-host/files --host /opt/srnet-host/mail
 
@@ -253,9 +284,10 @@ Run rooms, directory, files and mail on one server under ONE .sesh name:
 Session Router client config (own tun range, `[bind] listen=:1250`), and starts two units:
 `srnet-front-router` (the name) and `srnet-front` (a path router on the tun address, port 80):
 `/c/<collection>` goes to the hub serving it, `/v1/mail` to the mail host, `/v1/collections`
-lists everything. Each host's `link` then prints links on that name. Open udp/1250 and
-tcp/80 on `sr-front` only (`ufw allow in on sr-front to any port 80 proto tcp`).
-A board host serves at `/` and needs its own name.
+lists everything. Each host's `link` then prints links on that name. Open tcp/80 on
+`sr-front` only: `sudo ufw allow in on sr-front to any port 80 proto tcp`.
+A board host serves at `/`, so it needs a name of its own: run `front` with the board as the
+only `--host`.
 
 With systemd, `front` enables both units so they start at boot. Pass `--no-systemd` to only
 write the unit files to the front directory and start them yourself, or turn off autostart
@@ -266,7 +298,7 @@ later with `sudo systemctl disable srnet-front-router srnet-front`.
 `--route /NAME=PORT` (repeatable) also forwards `/NAME/...` to `127.0.0.1:PORT`, for example an
 SRNet relayer, so it is reachable only over Session Router and never on a public IP:
 
-    srnet-host front --sesh-import name.key --bootstrap mainnet.signed \
+    srnet-host front --sesh-import name.key \
         --host /opt/srnet-host/lobby --host /opt/srnet-host/mail --route /relayer=8645
 
 Re-run `front` with the same `--route` options whenever you change the hosts (routes not given
