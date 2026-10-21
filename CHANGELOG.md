@@ -8,6 +8,8 @@
   Router (Session-Router-SRNet 1.1.0+srnet6, the same one SRNet-Desktop uses) from its release
   `.deb`, with a checksum check. No Session Foundation apt repository is needed, and the server
   does not need the SRNet client.
+- The next steps `init` prints are the exact commands to run from the pack folder, with `sudo`
+  where it is needed.
 
 ## [0.5.0] - 2026-10-20
 

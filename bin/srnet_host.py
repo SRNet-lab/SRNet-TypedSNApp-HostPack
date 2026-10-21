@@ -289,12 +289,12 @@ def cmd_init(a):
     print(f"  host key : {F.pub_hex(host_key(cfg))}")
     print(f"  listens  : 127.0.0.1:{port} (loopback only)")
     print(f"\nNext: copy {req} to your OFFLINE root machine and run:")
-    print(f"  srnet-host root sign {os.path.basename(req)} --days 90")
+    print(f"  ./bin/srnet-host root sign {os.path.basename(req)} --days 90")
     print("then bring delegation.json back and run:")
-    print(f"  srnet-host install-delegation delegation.json --prefix {prefix}")
+    print(f"  sudo ./bin/srnet-host install-delegation delegation.json --prefix {prefix}")
     if sname:
-        print("then give it its .sesh name (Session Router must be installed, see `srnet-host sesh-help`):")
-        print(f"  srnet-host front --sesh-import {os.path.join(prefix, 'sesh', 'identity.key')} --host {prefix}")
+        print("then install Session Router (see `./bin/srnet-host sesh-help`) and give the host its .sesh name:")
+        print(f"  sudo ./bin/srnet-host front --sesh-import {os.path.join(prefix, 'sesh', 'identity.key')} --host {prefix}")
 
 
 def cmd_root_init(a):
@@ -693,7 +693,10 @@ Your host listens only on 127.0.0.1. To let people reach it over Session Router:
         && sudo apt install -y ./session-router-srnet_1.1.0+srnet6_amd64.deb \\
         && sudo apt-mark hold session-router-srnet
       cd -
-    It installs /usr/bin/session-router. The server does not need the SRNet client.
+    You should see "session-router-srnet_1.1.0+srnet6_amd64.deb: OK" before apt starts.
+    apt may print "Failed to try-restart session-router-client.service"; that is expected,
+    a server doesn't use that service. It installs /usr/bin/session-router.
+    The server does not need the SRNet client.
 
  2. Start the front with the .sesh key that `init` made:
       sudo ./bin/srnet-host front --sesh-import <prefix>/sesh/identity.key --host <prefix>

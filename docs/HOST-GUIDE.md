@@ -108,9 +108,11 @@ echo "5c1c9b553b25649657f9f8e3ae0431aa3fe0534c82e65214588c728307bf3237  session-
 cd ~/SRNet-TypedSNApp-HostPack
 ```
 
-You should see `checksum OK` before apt starts. If the check fails, nothing gets installed:
-download it again and rerun the chained lines. The package installs `/usr/bin/session-router`,
-which `srnet-host front` finds by itself. The server does not need the SRNet client.
+You should see `session-router-srnet_1.1.0+srnet6_amd64.deb: OK` before apt starts. If the check
+fails, nothing gets installed: download it again and rerun the chained lines. apt may print
+`Failed to try-restart session-router-client.service`. That is expected, because a server
+doesn't use that service. The package installs `/usr/bin/session-router`, which
+`srnet-host front` finds by itself. The server does not need the SRNet client.
 
 **2. Start the front** with the `.sesh` key that `init` made:
 
