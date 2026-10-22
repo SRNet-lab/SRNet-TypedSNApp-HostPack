@@ -1,5 +1,10 @@
 # SRNet host pack
 
+<table>
+<tr><td align="center"><img src="docs/images/store.png" width="420" alt="Store"><br>Store</td><td align="center"><img src="docs/images/file-drop.png" width="420" alt="File drop"><br>File drop</td></tr>
+<tr><td align="center"><img src="docs/images/wiki.png" width="420" alt="Wiki"><br>Wiki</td><td align="center"><img src="docs/images/directory.png" width="420" alt="Directory"><br>Directory</td></tr>
+</table>
+
 **What's new**
 
 - No developer fee anywhere in SRNet.
